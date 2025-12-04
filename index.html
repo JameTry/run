@@ -70,7 +70,7 @@
     function renderList() {
         listEl.innerHTML = words.map((w, i) => `
     <p data-i="${i}" class="${i === currentIndex ? "active" : ""}">
-      ${i}:${showEnglish ? w.name : w.trans.join("；")}
+      ${i+1}:${showEnglish ? w.name : w.trans.join("；")}
     </p>
   `).join("");
     }
