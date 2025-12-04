@@ -194,6 +194,7 @@
         synthesizer.speak(w.name);
         let i = 1
         speakT = setInterval(() => {
+            i++;
             synthesizer.speak(w.name)
             if (i > 2) {
                 clearTimeout(speakT);
