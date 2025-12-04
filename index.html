@@ -1,49 +1,49 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+    <meta charset="UTF-8"/>
+    <style>
+        #con {
+            width: 500px;
+            margin: 0 auto;
+        }
+
+        #list {
+            width: 200px;
+            position: fixed;
+            left: 20px;
+            padding-right: 20px;
+            overflow: scroll;
+            height: 100vh;
+        }
+
+        #list p.active {
+            background: #247cfa;
+            color: white;
+            padding: 2px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        #bottom {
+            position: absolute;
+            bottom: 20px;
+        }
+    </style>
 </head>
-<style>
-    #con {
-        width: 500px;
-        margin: 0 auto;
-    }
-
-    #list {
-        width: 200px;
-        position: fixed;
-        left: 20px;
-        overflow: scroll;
-        height: 100vh;
-    }
-
-    #bottom{
-        position: absolute;
-        bottom: 20px;
-    }
-
-</style>
 <body>
-<div id="list">
-
-</div>
+<div id="list"></div>
 <div id="con">
-    <main>
-
-        <p id="english">435</p>
-        <p id="chinese">34534</p>
-
-    </main>
+    <main></main>
     <div id="bottom">
-        <a href="/english">文档</a> <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 -/=键翻页</p>
+        <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 -/=键翻页</p>
+        <input type="checkbox" id="test">测试
+        <a href="/english">文档</a>
     </div>
 </div>
 
-
-
-
 <script>
+    let test = false;
     let showEnglish = true;
     let showChinese = true;
     let words = [];
@@ -52,169 +52,141 @@
 
     const mainEl = document.querySelector("main");
     const listEl = document.getElementById("list");
+    const testEl = document.getElementById("test");
 
-    function createEmptyP() {
-        const p = document.createElement("p");
-        p.textContent = "";
-        return p;
-    }
+    testEl.addEventListener("change", e => test = e.target.checked);
+
+    const emptyP = () => Object.assign(document.createElement("p"), {textContent: ""});
 
     fetch("/CET4_T.json")
-        .then(res => res.json())
+        .then(r => r.json())
         .then(data => {
             words = data;
             renderList();
             draw();
-            setCursorToEnd(mainEl.lastElementChild);
-        })
-        .catch(err => console.error("加载错误:", err));
+            focusLast();
+        });
 
     function renderList() {
-        listEl.innerHTML = words
-            .map((w, index) => {
-                if (showEnglish) {
-                    return `<p data-i="${index}">${w.name}</p>`;
-                }
-
-                let chineseText = w.trans.join("；");
-                return `<p data-i="${index}">${chineseText}</p>`;
-            })
-            .join("");
+        listEl.innerHTML = words.map((w, i) => `
+    <p data-i="${i}" class="${i === currentIndex ? "active" : ""}">
+      ${showEnglish ? w.name : w.trans.join("；")}
+    </p>
+  `).join("");
     }
 
-
-    listEl.addEventListener("click", (e) => {
-        if (e.target.tagName === "P") {
-            currentIndex = Number(e.target.dataset.i);
-            draw();
-            localStorage.setItem("i", currentIndex);
-        }
+    listEl.addEventListener("click", e => {
+        if (e.target.tagName !== "P") return;
+        currentIndex = Number(e.target.dataset.i);
+        draw();
+        renderList();
+        saveIndex();
     });
 
-    document.addEventListener("keydown", (e) => {
+    document.addEventListener("keydown", e => {
         const key = e.key;
-        if (key === "-") {
-            e.preventDefault()
-            currentIndex = Math.min(words.length - 1, currentIndex + 1);
-            draw();
-        }
-        else if (key === "=") {
-            e.preventDefault()
-            currentIndex = Math.max(0, currentIndex - 1);
-            draw();
-        }
-        else if (key === "Enter") {
-            e.preventDefault();
-            checkAndNewLine();
-            mainEl.appendChild(createEmptyP());
-        }
-        else if (key === "Backspace") {
-            handleBackspace();
-            e.preventDefault();
-        }
-        else if (key === "1") {
-            showEnglish = !showEnglish;
-            draw();
-            renderList();
-        }
-        else if (key === "2") {
-            showChinese = !showChinese;
-            draw();
-        }
-        else {
-            appendText(key);
-        }
-
-        localStorage.setItem("i", currentIndex);
+        if (key === "=") next();
+        else if (key === "-") prev();
+        else if (key === "Enter") handleEnter();
+        else if (key === "Backspace") handleBackspace();
+        else if (key === "1") toggleEnglish();
+        else if (key === "2") toggleChinese();
+        else if (key.length === 1) addChar(key);
+        saveIndex();
     });
 
-    function checkAndNewLine() {
-        const lastP = mainEl.lastElementChild;
-        const input = lastP.textContent.trim();
-        const correct = words[currentIndex].name.trim();
+    function next() {
+        currentIndex = Math.min(words.length - 1, currentIndex + 1);
+        redraw();
+    }
 
-        if (input.length > 0) {
-            if (input.toLowerCase() === correct.toLowerCase()) {
-                lastP.style.color = "green";
-            } else {
-                lastP.style.color = "red";
-            }
-        }
+    function prev() {
+        currentIndex = Math.max(0, currentIndex - 1);
+        redraw();
+    }
 
-        const newLine = createEmptyP();
-        mainEl.appendChild(newLine);
+    function redraw() {
+        draw();
+        renderList();
+    }
 
-        setCursorToEnd(newLine);
+    function saveIndex() {
+        localStorage.setItem("i", currentIndex);
+    }
+
+    function handleEnter() {
+        const last = mainEl.lastElementChild;
+        const input = last.textContent.trim();
+        const correct = words[currentIndex].name.trim().toLowerCase();
+
+        if (input) last.style.color = input.toLowerCase() === correct ? "green" : "red";
+
+        if (test && input.toLowerCase() === correct) next();
+
+        mainEl.appendChild(emptyP());
+        focusLast();
     }
 
     function draw() {
-        const word = words[currentIndex];
-
+        const w = words[currentIndex];
         mainEl.innerHTML = `
-        <p id="english">${showEnglish ? word.name : "--"}</p>
-        ${
-            showChinese
-                ? word.trans.map(t => `<p>${t}</p>`).join("")
-                : "<p>--</p>"
-        }
-    `;
-
-
-        baseLinesCount = 1 + word.trans.length;
-
-        mainEl.appendChild(createEmptyP());
+        <p>${showEnglish ? w.name : "--"}</p>
+        ${showChinese ? w.trans.map(t => `<p>${t}</p>`).join("") : "<p>--</p>"}
+      `;
+        baseLinesCount = 1 + w.trans.length;
+        mainEl.appendChild(emptyP());
+        focusList();
     }
 
-    function appendText(key) {
-        if (key.length === 1) {
-            const lastP = mainEl.lastElementChild;
-            lastP.textContent += key;
-            setCursorToEnd(lastP);
-        }
+    function toggleEnglish() {
+        showEnglish = !showEnglish;
+        redraw();
     }
 
+    function toggleChinese() {
+        showChinese = !showChinese;
+        draw();
+    }
+
+    function addChar(k) {
+        const p = mainEl.lastElementChild;
+        p.textContent += k;
+        focusLast();
+    }
 
     function handleBackspace() {
-        const children = mainEl.children;
+        const items = mainEl.children;
+        const last = items[items.length - 1];
 
-        if (children.length <= baseLinesCount + 1) {
-            const lastP = children[children.length - 1];
-            if (lastP.textContent.length > 0) {
-                lastP.textContent = lastP.textContent.slice(0, -1);
-            }
-            setCursorToEnd(lastP);
-            return;
+        if (items.length <= baseLinesCount + 1) {
+            last.textContent = last.textContent.slice(0, -1);
+            return focusLast();
         }
 
-        const lastP = children[children.length - 1];
-        const text = lastP.textContent;
-
-        if (text.length > 0) {
-            lastP.textContent = text.slice(0, -1);
-            setCursorToEnd(lastP);
-        } else {
-            mainEl.removeChild(lastP);
-
-            const newLast = mainEl.lastElementChild;
-            setCursorToEnd(newLast);
+        if (last.textContent) last.textContent = last.textContent.slice(0, -1);
+        else {
+            mainEl.removeChild(last);
+            focusLast();
         }
     }
 
-    function setCursorToEnd(p) {
+    function focusLast() {
+        setCursorAt(mainEl.lastElementChild);
+    }
+
+    function setCursorAt(p) {
         const range = document.createRange();
         const sel = window.getSelection();
-
         range.selectNodeContents(p);
         range.collapse(false);
-
         sel.removeAllRanges();
         sel.addRange(range);
     }
 
-
-
+    function focusList() {
+        const a = listEl.querySelector("p.active");
+        a?.scrollIntoView({behavior: "smooth", block: "center"});
+    }
 </script>
-
-
 </body>
 </html>
