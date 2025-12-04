@@ -36,7 +36,7 @@
 
     </main>
     <div id="bottom">
-        <a href="/english">文档</a> <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 左右键翻页</p>
+        <a href="/english">文档</a> <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 -/=键翻页</p>
     </div>
 </div>
 
@@ -93,13 +93,12 @@
 
     document.addEventListener("keydown", (e) => {
         const key = e.key;
-
-        if (key === "ArrowRight") {
+        if (key === "-") {
             e.preventDefault()
             currentIndex = Math.min(words.length - 1, currentIndex + 1);
             draw();
         }
-        else if (key === "ArrowLeft") {
+        else if (key === "=") {
             e.preventDefault()
             currentIndex = Math.max(0, currentIndex - 1);
             draw();
