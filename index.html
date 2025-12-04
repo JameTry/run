@@ -36,7 +36,7 @@
 
     </main>
     <div id="bottom">
-        <a href="/english">文档</a>
+        <a href="/english">文档</a> <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 左右键翻页</p>
     </div>
 </div>
 
@@ -53,7 +53,6 @@
     const mainEl = document.querySelector("main");
     const listEl = document.getElementById("list");
 
-    // 封装安全地创建一个空行 <p>
     function createEmptyP() {
         const p = document.createElement("p");
         p.textContent = "";
@@ -65,18 +64,25 @@
         .then(data => {
             words = data;
             renderList();
-            draw();                         // 页面打开立即显示
-            setCursorToEnd(mainEl.lastElementChild);  // 自动把光标放到最后一行
+            draw();
+            setCursorToEnd(mainEl.lastElementChild);
         })
         .catch(err => console.error("加载错误:", err));
 
     function renderList() {
         listEl.innerHTML = words
-            .map((w, index) => `<p data-i="${index}">${w.name}</p>`)
+            .map((w, index) => {
+                if (showEnglish) {
+                    return `<p data-i="${index}">${w.name}</p>`;
+                }
+
+                let chineseText = w.trans.join("；");
+                return `<p data-i="${index}">${chineseText}</p>`;
+            })
             .join("");
     }
 
-    // 点击左侧列表跳转词汇
+
     listEl.addEventListener("click", (e) => {
         if (e.target.tagName === "P") {
             currentIndex = Number(e.target.dataset.i);
@@ -85,7 +91,6 @@
         }
     });
 
-    // 整体键盘监听
     document.addEventListener("keydown", (e) => {
         const key = e.key;
 
@@ -106,11 +111,12 @@
         }
         else if (key === "Backspace") {
             handleBackspace();
-            e.preventDefault(); // 不让浏览器返回上一页
+            e.preventDefault();
         }
         else if (key === "1") {
             showEnglish = !showEnglish;
             draw();
+            renderList();
         }
         else if (key === "2") {
             showChinese = !showChinese;
@@ -128,7 +134,6 @@
         const input = lastP.textContent.trim();
         const correct = words[currentIndex].name.trim();
 
-        // 判断正确性
         if (input.length > 0) {
             if (input.toLowerCase() === correct.toLowerCase()) {
                 lastP.style.color = "green";
@@ -137,18 +142,15 @@
             }
         }
 
-        // 创建新行
         const newLine = createEmptyP();
         mainEl.appendChild(newLine);
 
-        // 光标移动到新行末尾
         setCursorToEnd(newLine);
     }
 
     function draw() {
         const word = words[currentIndex];
 
-        // 生成主内容
         mainEl.innerHTML = `
         <p id="english">${showEnglish ? word.name : "--"}</p>
         ${
@@ -158,10 +160,9 @@
         }
     `;
 
-        // 不可删除的行数：英文 + 翻译数
+
         baseLinesCount = 1 + word.trans.length;
 
-        // 添加第一行输入区
         mainEl.appendChild(createEmptyP());
     }
 
@@ -169,7 +170,7 @@
         if (key.length === 1) {
             const lastP = mainEl.lastElementChild;
             lastP.textContent += key;
-            setCursorToEnd(lastP);  // 追加文本后移动光标
+            setCursorToEnd(lastP);
         }
     }
 
@@ -193,7 +194,6 @@
             lastP.textContent = text.slice(0, -1);
             setCursorToEnd(lastP);
         } else {
-            // 删除空行后，光标移动到上一行末尾
             mainEl.removeChild(lastP);
 
             const newLast = mainEl.lastElementChild;
@@ -201,13 +201,12 @@
         }
     }
 
-    // 将光标移动到某个 p 元素内容的末尾
     function setCursorToEnd(p) {
         const range = document.createRange();
         const sel = window.getSelection();
 
         range.selectNodeContents(p);
-        range.collapse(false); // false = 光标放在末尾
+        range.collapse(false);
 
         sel.removeAllRanges();
         sel.addRange(range);
