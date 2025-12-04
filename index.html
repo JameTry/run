@@ -36,7 +36,7 @@
 <div id="con">
     <main></main>
     <div id="bottom">
-        <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 3测试  -/=键翻页</p>
+        <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 3测试 -/=键翻页</p>
         <input type="checkbox" id="test">测试
         <a href="/english">文档</a>
     </div>
@@ -48,15 +48,61 @@
     let showChinese = true;
     let words = [];
     let currentIndex = Number(localStorage.getItem("i")) || 0;
-    let baseLinesCount = 0;
-
+    let baseLinesCount = 3;
+    let speakT;
     const mainEl = document.querySelector("main");
     const listEl = document.getElementById("list");
     const testEl = document.getElementById("test");
 
     testEl.addEventListener("change", e => test = e.target.checked);
 
-    const emptyP = () => Object.assign(document.createElement("p"), {textContent: ""});
+    class VoiceSynthesizer {
+        constructor() {
+            this.synthesis = window.speechSynthesis;
+            this.voices = [];
+            this.init();
+        }
+
+        init() {
+            if (!this.isSupported()) {
+                throw new Error('浏览器不支持语音合成');
+            }
+            this.loadVoices();
+            this.synthesis.onvoiceschanged = () => this.loadVoices();
+        }
+
+        isSupported() {
+            return 'speechSynthesis' in window;
+        }
+
+        loadVoices() {
+            this.voices = this.synthesis.getVoices();
+        }
+
+        speak(text, options = {}) {
+            const defaults = {
+                lang: 'en-US',
+                rate: 1,
+                pitch: 1.0,
+                volume: 1.0,
+                voice: this.voices.find(v =>
+                    v.lang.includes('en') && v.default
+                ) || this.voices[0]
+            };
+            const utterance = new SpeechSynthesisUtterance(text);
+            Object.assign(utterance, defaults, options);
+            this.synthesis.cancel(); // 清空队列
+            this.synthesis.speak(utterance);
+            return utterance;
+        }
+
+        stop() {
+            this.synthesis.cancel();
+        }
+    }
+
+    const synthesizer = new VoiceSynthesizer();
+
 
     fetch("/CET4_T.json")
         .then(r => r.json())
@@ -70,7 +116,7 @@
     function renderList() {
         listEl.innerHTML = words.map((w, i) => `
     <p data-i="${i}" class="${i === currentIndex ? "active" : ""}">
-      ${i+1}:${showEnglish ? w.name : w.trans.join("；")}
+      ${i + 1}:${showEnglish ? w.name : w.trans.join("；")}
     </p>
   `).join("");
     }
@@ -92,9 +138,15 @@
         else if (key === "1") toggleEnglish();
         else if (key === "2") toggleChinese();
         else if (key === "3") toggleTest();
+        else if (key === " ") speck();
         else if (key.length === 1) addChar(key);
+
         saveIndex();
     });
+
+    function speck() {
+        synthesizer.speak(words[currentIndex].name);
+    }
 
     function next() {
         currentIndex = Math.min(words.length - 1, currentIndex + 1);
@@ -133,10 +185,25 @@
         mainEl.innerHTML = `
         <p>${showEnglish ? w.name : "--"}</p>
         ${showChinese ? w.trans.map(t => `<p>${t}</p>`).join("") : "<p>--</p>"}
+        <p>美&nbsp;${w.usphone}&nbsp;&nbsp;/&nbsp;&nbsp;英&nbsp;${w.ukphone}</p>
       `;
-        baseLinesCount = 1 + w.trans.length;
         mainEl.appendChild(emptyP());
         focusList();
+        clearTimeout(speakT);
+        synthesizer.stop();
+        synthesizer.speak(w.name);
+        let i = 1
+        speakT = setInterval(() => {
+            i++;
+            synthesizer.speak(w.name,{rate:1-(i*0.15)})
+            if (i > 2) {
+                clearTimeout(speakT);
+            }
+        }, 2000);
+    }
+
+    function emptyP() {
+        return document.createElement("p");
     }
 
     function toggleEnglish() {
@@ -149,9 +216,9 @@
         draw();
     }
 
-    function toggleTest(){
-        testEl.checked=!testEl.checked;
-        test=!test;
+    function toggleTest() {
+        testEl.checked = !testEl.checked;
+        test = !test;
     }
 
     function addChar(k) {
@@ -164,9 +231,8 @@
         const items = mainEl.children;
         const last = items[items.length - 1];
 
-        if (items.length <= baseLinesCount + 1) {
-            last.textContent = last.textContent.slice(0, -1);
-            return focusLast();
+        if (items.length < baseLinesCount+2) {
+            return;
         }
 
         if (last.textContent) last.textContent = last.textContent.slice(0, -1);
