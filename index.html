@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<style>
+    #con {
+        width: 500px;
+        margin: 0 auto;
+    }
+
+    #list {
+        width: 200px;
+        position: fixed;
+        left: 20px;
+        overflow: scroll;
+        height: 100vh;
+    }
+
+    #bottom{
+        position: absolute;
+        bottom: 20px;
+    }
+
+</style>
+<body>
+<div id="list">
+
+</div>
+<div id="con">
+    <main>
+
+        <p id="english">435</p>
+        <p id="chinese">34534</p>
+
+    </main>
+    <div id="bottom">
+        <a href="/english.md">文档</a>
+    </div>
+</div>
+
+
+
+<script>
+    let showEnglish = true;
+    let showChinese = true;
+    let words = [];
+    let currentIndex = Number(localStorage.getItem("i")) || 0;
+    let baseLinesCount = 0;
+
+    const mainEl = document.querySelector("main");
+    const listEl = document.getElementById("list");
+
+    // 封装安全地创建一个空行 <p>
+    function createEmptyP() {
+        const p = document.createElement("p");
+        p.textContent = "";
+        return p;
+    }
+
+    fetch("/CET4_T.json")
+        .then(res => res.json())
+        .then(data => {
+            words = data;
+            renderList();
+            draw();                         // 页面打开立即显示
+            setCursorToEnd(mainEl.lastElementChild);  // 自动把光标放到最后一行
+        })
+        .catch(err => console.error("加载错误:", err));
+
+    function renderList() {
+        listEl.innerHTML = words
+            .map((w, index) => `<p data-i="${index}">${w.name}</p>`)
+            .join("");
+    }
+
+    // 点击左侧列表跳转词汇
+    listEl.addEventListener("click", (e) => {
+        if (e.target.tagName === "P") {
+            currentIndex = Number(e.target.dataset.i);
+            draw();
+            localStorage.setItem("i", currentIndex);
+        }
+    });
+
+    // 整体键盘监听
+    document.addEventListener("keydown", (e) => {
+        const key = e.key;
+
+        if (key === "ArrowRight") {
+            e.preventDefault()
+            currentIndex = Math.min(words.length - 1, currentIndex + 1);
+            draw();
+        }
+        else if (key === "ArrowLeft") {
+            e.preventDefault()
+            currentIndex = Math.max(0, currentIndex - 1);
+            draw();
+        }
+        else if (key === "Enter") {
+            e.preventDefault();
+            checkAndNewLine();
+            mainEl.appendChild(createEmptyP());
+        }
+        else if (key === "Backspace") {
+            handleBackspace();
+            e.preventDefault(); // 不让浏览器返回上一页
+        }
+        else if (key === "1") {
+            showEnglish = !showEnglish;
+            draw();
+        }
+        else if (key === "2") {
+            showChinese = !showChinese;
+            draw();
+        }
+        else {
+            appendText(key);
+        }
+
+        localStorage.setItem("i", currentIndex);
+    });
+
+    function checkAndNewLine() {
+        const lastP = mainEl.lastElementChild;
+        const input = lastP.textContent.trim();
+        const correct = words[currentIndex].name.trim();
+
+        // 判断正确性
+        if (input.length > 0) {
+            if (input.toLowerCase() === correct.toLowerCase()) {
+                lastP.style.color = "green";
+            } else {
+                lastP.style.color = "red";
+            }
+        }
+
+        // 创建新行
+        const newLine = createEmptyP();
+        mainEl.appendChild(newLine);
+
+        // 光标移动到新行末尾
+        setCursorToEnd(newLine);
+    }
+
+    function draw() {
+        const word = words[currentIndex];
+
+        // 生成主内容
+        mainEl.innerHTML = `
+        <p id="english">${showEnglish ? word.name : "--"}</p>
+        ${
+            showChinese
+                ? word.trans.map(t => `<p>${t}</p>`).join("")
+                : "<p>--</p>"
+        }
+    `;
+
+        // 不可删除的行数：英文 + 翻译数
+        baseLinesCount = 1 + word.trans.length;
+
+        // 添加第一行输入区
+        mainEl.appendChild(createEmptyP());
+    }
+
+    function appendText(key) {
+        if (key.length === 1) {
+            const lastP = mainEl.lastElementChild;
+            lastP.textContent += key;
+            setCursorToEnd(lastP);  // 追加文本后移动光标
+        }
+    }
+
+
+    function handleBackspace() {
+        const children = mainEl.children;
+
+        if (children.length <= baseLinesCount + 1) {
+            const lastP = children[children.length - 1];
+            if (lastP.textContent.length > 0) {
+                lastP.textContent = lastP.textContent.slice(0, -1);
+            }
+            setCursorToEnd(lastP);
+            return;
+        }
+
+        const lastP = children[children.length - 1];
+        const text = lastP.textContent;
+
+        if (text.length > 0) {
+            lastP.textContent = text.slice(0, -1);
+            setCursorToEnd(lastP);
+        } else {
+            // 删除空行后，光标移动到上一行末尾
+            mainEl.removeChild(lastP);
+
+            const newLast = mainEl.lastElementChild;
+            setCursorToEnd(newLast);
+        }
+    }
+
+    // 将光标移动到某个 p 元素内容的末尾
+    function setCursorToEnd(p) {
+        const range = document.createRange();
+        const sel = window.getSelection();
+
+        range.selectNodeContents(p);
+        range.collapse(false); // false = 光标放在末尾
+
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+
+
+</script>
+
+
+</body>
+</html>
