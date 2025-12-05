@@ -29,6 +29,38 @@
             position: absolute;
             bottom: 20px;
         }
+
+        #static-info {
+            border-bottom: 2px solid #eee;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+        }
+
+        .input-line {
+            min-height: 1.5em;
+            display: block;
+            caret-color: transparent;
+        }
+
+        .input-line:last-child::after {
+            content: '';
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background-color: #007bff;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -182,11 +214,16 @@
     function draw() {
         const w = words[currentIndex];
         mainEl.innerHTML = `
-        <p>${showEnglish ? w.name : "--"}</p>
-        ${showChinese ? w.trans.map(t => `<p>${t}</p>`).join("") : "<p>--</p>"}
-        <p>美&nbsp;${w.usphone}&nbsp;&nbsp;/&nbsp;&nbsp;英&nbsp;${w.ukphone}</p>
-      `;
+      <div id="static-info">
+          <p class="word">${showEnglish ? w.name : "--"}</p>
+          ${showChinese ? w.trans.map(t => `<p class="trans">${t}</p>`).join("") : "<p class=\"trans\">--</p>"}
+          <p class="phonetic">美&nbsp;${w.usphone}&nbsp;&nbsp;/&nbsp;&nbsp;英&nbsp;${w.ukphone}</p>
+      </div>
+    `;
+
+        // 添加第一个输入行
         mainEl.appendChild(emptyP());
+
         focusList();
         clearTimeout(speakT);
         synthesizer.stop();
@@ -199,10 +236,14 @@
                 clearTimeout(speakT);
             }
         }, 2000);
+
+        setTimeout(focusLast, 0);
     }
 
     function emptyP() {
-        return document.createElement("p");
+        const p = document.createElement("p");
+        p.className = "input-line";
+        return p;
     }
 
     function toggleEnglish() {
@@ -221,24 +262,32 @@
     }
 
     function addChar(k) {
-        const p = mainEl.lastElementChild;
-        p.textContent += k;
+        let last = mainEl.lastElementChild;
+
+        if (!last || !last.classList.contains("input-line")) {
+            last = emptyP();
+            mainEl.appendChild(last);
+        }
+
+        last.textContent += k;
         focusLast();
     }
 
     function handleBackspace() {
-        const items = mainEl.children;
-        const last = items[items.length - 1];
+        const last = mainEl.lastElementChild;
 
-        if (items.length < baseLinesCount+2) {
+
+        if (!last || !last.classList.contains("input-line")) {
             return;
         }
 
-        if (last.textContent) last.textContent = last.textContent.slice(0, -1);
-        else {
-            mainEl.removeChild(last);
-            focusLast();
+        if (last.textContent) {
+            last.textContent = last.textContent.slice(0, -1);
+        } else {
+            return;
         }
+
+        focusLast();
     }
 
     function focusLast() {
