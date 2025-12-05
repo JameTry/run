@@ -8,14 +8,23 @@
             margin: 0 auto;
         }
 
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            font-family: sans-serif;
+        }
+
         #list {
             width: 200px;
             position: fixed;
             left: 20px;
             padding-right: 20px;
-            overflow: scroll;
             height: 100vh;
+            overflow-y: auto;
         }
+
 
         #list p.active {
             background: #247cfa;
@@ -26,7 +35,7 @@
         }
 
         #bottom {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
         }
 
@@ -68,7 +77,7 @@
 <div id="con">
     <main></main>
     <div id="bottom">
-        <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 3测试 -/=键翻页</p>
+        <p style="font-size: 14px;color: #7a7a7a">1隐藏英文 2隐藏翻译 3隐藏音标 4测试 -/=键翻页</p>
         <input type="checkbox" id="test">测试
         <a href="/english">文档</a>
     </div>
@@ -77,9 +86,9 @@
     let test = false;
     let showEnglish = true;
     let showChinese = true;
+    let showPhonetic = true;
     let words = [];
     let currentIndex = Number(localStorage.getItem("i")) || 0;
-    let baseLinesCount = 3;
     let speakT;
     const mainEl = document.querySelector("main");
     const listEl = document.getElementById("list");
@@ -134,29 +143,30 @@
 
     const synthesizer = new VoiceSynthesizer();
 
-
     fetch("/CET4_T.json")
         .then(r => r.json())
         .then(data => {
             words = data;
             renderList();
             draw();
+            focusList();
             focusLast();
         });
 
     function renderList() {
         listEl.innerHTML = words.map((w, i) => `
-    <p data-i="${i}" class="${i === currentIndex ? "active" : ""}">
-      ${i + 1}:${showEnglish ? w.name : w.trans.join("；")}
-    </p>
-  `).join("");
+            <p data-i="${i}" class="${i === currentIndex ? "active" : ""}">
+              ${i + 1}:${showEnglish ? w.name : w.trans.join("；")}
+            </p>
+        `).join("");
     }
 
     listEl.addEventListener("click", e => {
         if (e.target.tagName !== "P") return;
         currentIndex = Number(e.target.dataset.i);
-        draw();
         renderList();
+        draw();
+        focusList();
         saveIndex();
     });
 
@@ -168,7 +178,8 @@
         else if (key === "Backspace") handleBackspace();
         else if (key === "1") toggleEnglish();
         else if (key === "2") toggleChinese();
-        else if (key === "3") toggleTest();
+        else if (key === "3") togglePhonetic();
+        else if (key === "4") toggleTest();
         else if (key === " ") speck();
         else if (key.length === 1) addChar(key);
 
@@ -181,17 +192,22 @@
 
     function next() {
         currentIndex = Math.min(words.length - 1, currentIndex + 1);
-        redraw();
+        renderList();
+        draw();
+        focusList();
     }
 
     function prev() {
         currentIndex = Math.max(0, currentIndex - 1);
-        redraw();
+        renderList();
+        draw();
+        focusList();
     }
 
     function redraw() {
-        draw();
         renderList();
+        draw();
+        focusList();
     }
 
     function saveIndex() {
@@ -205,7 +221,14 @@
 
         if (input) last.style.color = input.toLowerCase() === correct ? "green" : "red";
 
-        if (test && input.toLowerCase() === correct) next();
+        if (test && input.toLowerCase() === correct) {
+            currentIndex = Math.min(words.length - 1, currentIndex + 1);
+            renderList();
+            draw();
+            focusList();
+            saveIndex();
+            return;
+        }
 
         mainEl.appendChild(emptyP());
         focusLast();
@@ -214,21 +237,20 @@
     function draw() {
         const w = words[currentIndex];
         mainEl.innerHTML = `
-      <div id="static-info">
-          <p class="word">${showEnglish ? w.name : "--"}</p>
-          ${showChinese ? w.trans.map(t => `<p class="trans">${t}</p>`).join("") : "<p class=\"trans\">--</p>"}
-          <p class="phonetic">美&nbsp;${w.usphone}&nbsp;&nbsp;/&nbsp;&nbsp;英&nbsp;${w.ukphone}</p>
-      </div>
-    `;
+          <div id="static-info">
+              <p class="word">${showEnglish ? w.name : "--"}</p>
+              ${showChinese ? w.trans.map(t => `<p class="trans">${t}</p>`).join("") : "<p class=\"trans\">--</p>"}
+              <p class="phonetic">
+                  ${showPhonetic ? `美&nbsp;${w.usphone}&nbsp;&nbsp;/&nbsp;&nbsp;英&nbsp;${w.ukphone}` : "--"}
+              </p>
+          </div>
+        `;
 
-        // 添加第一个输入行
         mainEl.appendChild(emptyP());
-
-        focusList();
         clearTimeout(speakT);
         synthesizer.stop();
         synthesizer.speak(w.name);
-        let i = 1
+        let i = 1;
         speakT = setInterval(() => {
             i++;
             synthesizer.speak(w.name)
@@ -248,12 +270,19 @@
 
     function toggleEnglish() {
         showEnglish = !showEnglish;
-        redraw();
+        renderList();
+        draw();
+        focusList();
     }
 
     function toggleChinese() {
         showChinese = !showChinese;
         draw();
+    }
+    function togglePhonetic() {
+        showPhonetic = !showPhonetic;
+        draw();
+        focusList();
     }
 
     function toggleTest() {
@@ -275,7 +304,6 @@
 
     function handleBackspace() {
         const last = mainEl.lastElementChild;
-
 
         if (!last || !last.classList.contains("input-line")) {
             return;
@@ -305,8 +333,14 @@
 
     function focusList() {
         const a = listEl.querySelector("p.active");
-        a?.scrollIntoView({behavior: "auto", block: "center"});
+        if (!a) return;
+
+        const targetOffset = a.offsetTop;
+        const targetHeight = a.offsetHeight;
+        const containerHeight = listEl.clientHeight;
+        listEl.scrollTop = Math.max(0, targetOffset - (containerHeight / 2) + (targetHeight / 2));
     }
 </script>
+
 </body>
 </html>
